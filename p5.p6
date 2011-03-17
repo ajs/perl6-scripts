@@ -221,7 +221,7 @@ sub findlongest_substr($s1, $s2) {
          if $start1+$len == $i and
             $start1+$speclen < $s1c and
             $start2+$len < $s2c and
-            $s1i eq substr($s2,$start2>+$len,1) {
+            $s1i eq substr($s2,$start2+$len,1) {
             # This active match has continued at $s1[$i]
             $len++;
             @nowactive.push($a);
