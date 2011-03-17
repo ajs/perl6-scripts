@@ -79,17 +79,17 @@ my @samples = (
    ]
 );
 
-my @solutions = (
-# This is the slower of the two variants, so we'll skip it for now.
-#   { 'name' => 'ajs-list', 'func' => &findlongest },
-   { 'name' => 'ajs-substr', 'func' => &findlongest_substr },
-# These are pretty slow, so in the interest of faster benchmarks...
-#   { 'name' => 'p5-util', 'func' => &util-lcs },
-#   { 'name' => 'p5-matthias', 'func' => &matthias-longest },
-#   { 'name' => 'p5-moritz', 'func' => &moritz-LCS },
-#   { 'name' => 'p5-fox', 'func' => &fox-longest-string },
-   { 'name' => 'p5-colomon', 'func' => &colomon-find-longest-substring }
+my %solutions = (
+   'ajs-list' => &findlongest,
+   'ajs-substr' => &findlongest_substr,
+   'p5-util' => &util-lcs,
+   'p5-matthias' => &matthias-longest,
+   'p5-moritz' => &moritz-LCS,
+   'p5-fox' => &fox-longest-string,
+   'p5-colomon' => &colomon-find-longest-substring
 );
+
+my @lineup = <ajs-substr p5-colomon>;
 
 my $trial = 1;
 for @samples -> $s {
@@ -98,10 +98,11 @@ for @samples -> $s {
     say "'{shortstr($s[0],15)}' and '{shortstr($s[1],15)}'";
     my $total_len = $s[0].chars + $s[1].chars;
     say "Total string length $total_len";
-    for @solutions -> $solution {
-	say "Trying {$solution<name>}...";
+    for @lineup -> $solution-name {
+	my $solution = %solutions{$solution-name};
+	say "Trying $solution-name...";
 	my $start = now;
-	say "Answer is: '{$solution<func>($s[0], $s[1])}'";
+	say "Answer is: '{$solution($s[0], $s[1])}'";
 	say "Solution took {timeinfo($start, now, $total_len)}";
     }
 }
@@ -226,7 +227,6 @@ sub findlongest_substr($s1, $s2) {
             @nowactive.push($a);
          } elsif $a<len> > $longest_seen {
             # An active match has ended
-            #say " ... adding match '{substr($s1,$a<start1>,$a<len>)}'";
             $longest_seen = $a<len>;
             @matches.push($a);
          }
@@ -245,6 +245,7 @@ sub findlongest_substr($s1, $s2) {
             @nowactive.push({ 'start1' => $j, 'start2' => $i, 'len' => 1 });
          }
       }
+      say "We now have {+@nowactive} active matches";
       # We've built a new list of active matches, so swap.
       @active = @nowactive;
       if $i < $s1c {
@@ -258,11 +259,9 @@ sub findlongest_substr($s1, $s2) {
          @where[1]{$s2i}.push($i);
       }
    }
-   #say " ... done with main loop.";
    for @active -> $a {
       if $a<len> > $longest_seen {
          $longest_seen = $a<len>;
-         #say " ... adding match '{substr($s1,$a<start1>,$a<len>)}'";
          @matches.push($a);
       }
    }
@@ -456,7 +455,6 @@ class SuffixTree {
 
         my $active = Suffix.new(self, 0, 0, -1);  # The initial active prefix
         for ^($.string.chars) -> $i {
-            # say "Character $i";
             self.add-prefix($active, $i);
         }
     }
