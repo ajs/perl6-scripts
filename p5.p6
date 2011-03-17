@@ -86,7 +86,8 @@ my %solutions = (
    'p5-matthias' => &matthias-longest,
    'p5-moritz' => &moritz-LCS,
    'p5-fox' => &fox-longest-string,
-   'p5-colomon' => &colomon-find-longest-substring
+   'p5-colomon' => &colomon-find-longest-substring,
+   'p5-mberends' => &mberends-xor-solution
 );
 
 my @lineup = <ajs-substr p5-colomon>;
@@ -730,4 +731,150 @@ sub util-lcs ( Str $xstr, Str $ystr ) {
     }
 
     return @r.reverse.join('');
+}
+
+# Note, this code is optimized for legibility and fault finding, not
+# brevity or speed.  The main goal was to assess the scalability trend
+# of the string xor (~^) based algorithm.  And the reason for that is to
+# avoid ever handling the data one character at a time, since that would
+# probably require a greater number of inner loops and scale badly.  The
+# rest of the algorithm is fairly much brute force, and would port to
+# almost any language.
+
+# Another note, working with this code convinces me that the number of
+# characters in a string *should* be called .length, not .chars, because
+# .chars really suggests it will return the characters (in a list).  It
+# reads really badly in places.
+
+# Algorithm: calculate offsets to effectively slide string1 over string2
+# one character position at a time in a loop, like:
+#
+#  string1         string1        string1       string1
+#        string2        string2       string2      string2     etc...
+#
+# Extract the overlapping substrings and xor them (~^) together.  In the
+# xor'ed result, every match makes a chr(0), and every mismatch others.
+# Extract the runs of consecutive chr(0) characters into an array.  Sort
+# the array by length (.chars) and get the length of the longest one.
+# Compare with the best found so far and remember this one and its
+# offset if it's better.  Rinse, repeat for all offsets.  Use the offset
+# and best length to find the position of the longest common substring.
+
+# Analysis of the algorithm predicts quadratic time, O(N**2) where N is
+# the sum of the two string charcounts, er, lengths.
+
+# The amount of memory `top` indicates being used by the rakudo process
+# is fairly stable at between 61 and 71 megabytes on a 32 bit Atom N270,
+# indicating a low amount of heap and GC usage, confirming the design
+# hypothesis.  The code executes in quadratic time almost independent of
+# data values.
+
+sub mberends-xor-solution($string1, $string2) {
+	my $chars1 = $string1.chars;
+	my $chars2 = $string2.chars;
+	#say "string1 $chars1 chars = '$string1'";
+	#say "string2 $chars2 chars = '$string2'";
+
+	my ($nullchar, $best_runlength, $best_offset) = (chr(0), 0, 0);
+	my ($offset_min, $offset_max, $offset);
+	my ($pos1, $pos2, $overlap_string, $overlap_chars);
+	my ($buf1, $buf2, $buf3);
+	my (@runs, @sorted_runs, $longest_run, $longest_buf, $longest_chars);
+
+	# $offset is most negative when only the last character of $string1
+	# overlaps with the first character of $string2, and most positive when
+	# only the first character of $string1 overlaps with the last character
+	# of $string2.  Somewhere in the middle, $offset is 0 when the two
+	# strings overlap from the first character.
+	$pos1          = $chars1 - 1;
+	$pos2          = 0;
+	$overlap_chars = 1;
+	$offset_min    = - $pos1;
+	$offset_max    = $chars2 - 1;
+	loop ($offset = $offset_min; $offset <= $offset_max; ++$offset )
+	{
+	    #print (($offset - $offset_min) / ($offset_max - $offset_min) * 100).fmt("%3d%%\r");
+	    # This executes in O(N) time, where N is the "length" (total number
+	    # of characters) of both strings combined.
+
+	    # say "offset=$offset pos1=$pos1 pos2=$pos2 overlap_chars=$overlap_chars";
+
+	    $pos1 = [max] (-$offset - 1), 0; # WIM is max(-$offset-1, 0)
+	    $pos2 = [max] 0, $offset;        # WIM is max(0, $offset)
+
+	    $overlap_chars = $offset < 0
+		?? ([min] $chars2, ($chars1-$pos1-1))  # WIM is min($chars2,$chars1-$pos1-1) but Rakudo is broken
+		!! ([min] $chars1, ($chars2-$pos2  )); # ditto
+	    # say "offset=$offset pos1=$pos1 pos2=$pos2 overlap_chars=$overlap_chars";
+
+	    # From here on it becomes a series of messy workarounds for various
+	    # parts of Rakudo and Parrot that do not consistently handle chr(0)
+	    # as an Str or character.
+	    # Golfing it causes various breakages, bug reports TODO.
+
+	    # Workaround for ~^ failing on Str, the intended code:
+	    # $overlap_string = $string1.substr($pos1,$overlap_chars)
+	    #                ~^ $string2.substr($pos2,$overlap_chars);
+	    # dies: string bitwise_xor (utf8/utf8) unsupported in 'infix:<~^>'
+	    $buf1 = $string1.substr($pos1,$overlap_chars).encode;
+	    $buf2 = $string2.substr($pos2,$overlap_chars).encode;
+	    $buf3 = $buf1 ~^ $buf2;
+	    $overlap_string = $buf3.decode;
+	    # Execution time for the ~^ operation will be O(min(C1,C2)) where C1
+	    # and C2 are the charscounts ("lengths" in chars) of the two input
+	    # strings.
+
+	    # .chars fails on strings containing chr(0) characters, so cheat by
+	    # changing them to another character that is not in the original text
+	    $overlap_string .= subst($nullchar, '_', :global);
+	    # Execution time for subst O(min(C1,C2))
+	    @runs = $overlap_string.comb(/_+/);
+	    # Execution time for comb O(min(C1,C2))
+	    if (@runs.elems > 0) {
+		@sorted_runs = @runs.sort(-*.chars);
+		$longest_run   = @sorted_runs[0];
+		$longest_chars = $longest_run.chars;
+		# say "longest $longest_chars";
+		if ($longest_chars > $best_runlength) {
+		    $best_runlength = $longest_chars;
+		    $best_offset = $offset;
+		}
+	    }
+	}
+	# Was any common substring found at all? This runs in O(1) time.
+	if ($best_runlength>0) {
+	    # Repeat the calculations that were initially done inside the loop.
+	    # Why not just remember them?  It would have slowed that loop down
+	    # O(N) times, and now we also need slightly different info.
+	    $offset = $best_offset;
+	    $pos1 = [max] (-$offset - 1), 0; # WIM is max(-$offset-1, 0)
+	    $pos2 = [max] 0, $offset;        # WIM is max(0, $offset)
+
+	    $overlap_chars = $offset < 0
+		?? ([min] $chars2, ($chars1-$pos1-1))  # I mean min($chars2,$chars1-$pos1-1) but Rakudo is broken
+		!! ([min] $chars1, ($chars2-$pos2  )); # ditto
+	    # say "offset=$offset pos1=$pos1 pos2=$pos2 overlap_chars=$overlap_chars";
+	    $buf1 = $string1.substr($pos1,$overlap_chars).encode;
+	    $buf2 = $string2.substr($pos2,$overlap_chars).encode;
+	    $buf3 = $buf1 ~^ $buf2;
+	    $overlap_string = $buf3.decode;
+	    $overlap_string .= subst($nullchar, '_', :global);
+	    # Execution time for subst O(min(C1,C2))
+	    # Now it deviates from the code in the loop, instead of searching
+	    # for the longest run it must find its position.
+	    $pos2 = index($overlap_string, '_' x $best_runlength);
+	    if (defined($pos2)) {
+		#say "longest common substring is '"
+		#  ~ substr($string1, $pos1+$pos2, $best_runlength)
+		#  ~ "' ($best_runlength characters)";
+		return substr($string1, $pos1+$pos2, $best_runlength);
+	    }
+	    else { # the unthinkable has happened
+		die "oops, some internal error :-(";
+	    }
+	}
+	else {
+	    #say "No commmon substring found";
+	    return "";
+	}
 }
