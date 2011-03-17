@@ -86,8 +86,8 @@ my @solutions = (
 # These are pretty slow, so in the interest of faster benchmarks...
 #   { 'name' => 'p5-util', 'func' => &util-lcs },
 #   { 'name' => 'p5-matthias', 'func' => &matthias-longest },
-   { 'name' => 'p5-moritz', 'func' => &moritz-LCS },
-   { 'name' => 'p5-fox', 'func' => &fox-longest-string },
+#   { 'name' => 'p5-moritz', 'func' => &moritz-LCS },
+#   { 'name' => 'p5-fox', 'func' => &fox-longest-string },
    { 'name' => 'p5-colomon', 'func' => &colomon-find-longest-substring }
 );
 
@@ -211,7 +211,7 @@ sub findlongest_substr($s1, $s2) {
          # This much space must be left in the strings:
          my $speclen = $a<len> > $longest_seen ?? $a<len> !! $longest_seen;
          if $a<start1>+$a<len> == $i and
-            $a<start2>+$speclen < $s1c and
+            $a<start1>+$speclen < $s1c and
             $a<start2>+$a<len> < $s2c and
             $s1i eq substr($s2,$a<start2>+$a<len>,1) {
             # This active match has continued at $s1[$i]
