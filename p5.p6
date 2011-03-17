@@ -90,7 +90,7 @@ my %solutions = (
    'p5-mberends' => &mberends-xor-solution
 );
 
-my @lineup = <ajs-substr p5-colomon>;
+my @lineup = <ajs-list ajs-substr p5-colomon>;
 
 my $trial = 1;
 for @samples -> $s {
@@ -119,12 +119,12 @@ sub findlongest($s1, $s2) {
    for 0 ...^ $maxlen -> $i {
       my @nowactive;
       if +@s1 - $i > $longest_seen {
-         @active.push({ 'start1' => $i, 'start2' => $i, 'len' => 0 });
+         @active.push([ $i, $i, 0 ]);
       }
       for @active -> $a {
-         my $start1 := $a<start1>;
-         my $start2 := $a<start2>;
-         my $len := $a<len>;
+         my $start1 := $a[0];
+         my $start2 := $a[1];
+         my $len := $a[2];
          # This much space must be left in the strings:
          my $speclen = $len > $longest_seen ?? $len !! $longest_seen;
          if $start1+$len == $i and
@@ -152,14 +152,14 @@ sub findlongest($s1, $s2) {
          for @(@where[1]{@s1[$i]}) -> $j {
             # Add a new active match for the char at @s1[$i] against
             # a previous instance of that char in @s2
-            @nowactive.push({ 'start1' => $i, 'start2' => $j, 'len' => 1 });
+            @nowactive.push([ $i, $j, 1 ]);
          }
       }
       if $i < +@s2 and @where[0]{@s2[$i]} {
          for @(@where[0]{@s2[$i]}) -> $j {
             # Add a new active match for the char at @s2[$i] against
             # a previous instance of that char in @s1
-            @nowactive.push({ 'start1' => $j, 'start2' => $i, 'len' => 1 });
+            @nowactive.push([ $j, $i, 1 ]);
          }
       }
       # We've built a new list of active matches, so swap.
@@ -177,8 +177,8 @@ sub findlongest($s1, $s2) {
    }
    #say " ... done with main loop.";
    for @active -> $a {
-      if $a<len> > $longest_seen {
-         $longest_seen = $a<len>;
+      if $a[2] > $longest_seen {
+         $longest_seen = $a[2];
          #say " ... adding match '{substr($s1,$a<start1>,$a<len>)}'";
          @matches.push($a);
       }
@@ -189,8 +189,8 @@ sub findlongest($s1, $s2) {
    # one of the longest (if multiple longest substrings
    # are found, we don't weight one over the other, just pick
    # whichever shows up a the top of the list.
-   my $longest = (sort {- .<len>}, @matches)[0];
-   return substr($s1, $longest<start1>, $longest<len>);
+   my $longest = (sort {- .[2]}, @matches)[0];
+   return substr($s1, $longest[0], $longest[2]);
 }
 
 # Same as above, but use substr instead of breaking the
@@ -210,12 +210,12 @@ sub findlongest_substr($s1, $s2) {
       my $s2i = $i < $s2c ?? substr($s2,$i,1) !! '';
       my @nowactive;
       if $s1c - $i > $longest_seen {
-         @active.push({ 'start1' => $i, 'start2' => $i, 'len' => 0 });
+         @active.push([ $i, $i, 0 ]);
       }
       for @active -> $a {
-         my $start1 := $a<start1>;
-         my $start2 := $a<start2>;
-         my $len := $a<len>;
+         my $start1 := $a[0];
+         my $start2 := $a[1];
+         my $len := $a[2];
          # This much space must be left in the strings:
          my $speclen = $len > $longest_seen ?? $len !! $longest_seen;
          if $start1+$len == $i and
@@ -242,14 +242,14 @@ sub findlongest_substr($s1, $s2) {
          for @(@where[1]{$s1i}) -> $j {
             # Add a new active match for the char at $s1[$i] against
             # a previous instance of that char in $s2
-            @nowactive.push({ 'start1' => $i, 'start2' => $j, 'len' => 1 });
+            @nowactive.push([ $i, $j, 1 ]);
          }
       }
       if $i < $s2c and @where[0]{$s2i} {
          for @(@where[0]{$s2i}) -> $j {
             # Add a new active match for the char at $s2[$i] against
             # a previous instance of that char in $s1
-            @nowactive.push({ 'start1' => $j, 'start2' => $i, 'len' => 1 });
+            @nowactive.push([ $j, $i, 1 ]);
          }
       }
       # We've built a new list of active matches, so swap.
@@ -266,8 +266,8 @@ sub findlongest_substr($s1, $s2) {
       }
    }
    for @active -> $a {
-      if $a<len> > $longest_seen {
-         $longest_seen = $a<len>;
+      if $a[2] > $longest_seen {
+         $longest_seen = $a[2];
          @matches.push($a);
       }
    }
@@ -277,8 +277,8 @@ sub findlongest_substr($s1, $s2) {
    # one of the longest (if multiple longest substrings
    # are found, we don't weight one over the other, just pick
    # whichever shows up a the top of the list.
-   my $longest = (sort {- .<len>}, @matches)[0];
-   return substr($s1, $longest<start1>, $longest<len>);
+   my $longest = (sort {- .[2]}, @matches)[0];
+   return substr($s1, $longest[0], $longest[2]);
 }
 
 # Return $s unless $s > $n chars long. In which case, return a subset of
