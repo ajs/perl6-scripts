@@ -122,26 +122,29 @@ sub findlongest($s1, $s2) {
          @active.push({ 'start1' => $i, 'start2' => $i, 'len' => 0 });
       }
       for @active -> $a {
+         my $start1 := $a<start1>;
+         my $start2 := $a<start2>;
+         my $len := $a<len>;
          # This much space must be left in the strings:
-         my $speclen = $a<len> > $longest_seen ?? $a<len> !! $longest_seen;
-         if $a<start1>+$a<len> == $i and
-            $a<start1>+$speclen < +@s1 and
-            $a<start2>+$speclen < +@s2 and
-            @s1[$i] eq @s2[$a<start2>+$a<len>] {
+         my $speclen = $len > $longest_seen ?? $len !! $longest_seen;
+         if $start1+$len == $i and
+            $start1+$speclen < +@s1 and
+            $start2+$speclen < +@s2 and
+            @s1[$i] eq @s2[$start2+$len] {
             # This active match has continued at @s1[$i]
-            $a<len>++;
+            $len++;
             @nowactive.push($a);
-         } elsif $a<start2>+$a<len> == $i and
-            $a<start2>+$speclen < +@s2 and
-            $a<start1>+$speclen < +@s1 and
-            @s2[$i] eq @s1[$a<start1>+$a<len>] {
+         } elsif $start2+$len == $i and
+            $start2+$speclen < +@s2 and
+            $start1+$speclen < +@s1 and
+            @s2[$i] eq @s1[$start1+$len] {
             # This active match has continued at @s2[$i]
-            $a<len>++;
+            $len++;
             @nowactive.push($a);
-         } elsif $a<len> > $longest_seen {
+         } elsif $len > $longest_seen {
             # An active match has ended and is our new champ
             #say " ... adding match '{substr($s1,$a<start1>,$a<len>)}'";
-            $longest_seen = $a<len>;
+            $longest_seen = $len;
             @matches.push($a);
          }
       }
@@ -210,25 +213,28 @@ sub findlongest_substr($s1, $s2) {
          @active.push({ 'start1' => $i, 'start2' => $i, 'len' => 0 });
       }
       for @active -> $a {
+         my $start1 := $a<start1>;
+         my $start2 := $a<start2>;
+         my $len := $a<len>;
          # This much space must be left in the strings:
-         my $speclen = $a<len> > $longest_seen ?? $a<len> !! $longest_seen;
-         if $a<start1>+$a<len> == $i and
-            $a<start1>+$speclen < $s1c and
-            $a<start2>+$a<len> < $s2c and
-            $s1i eq substr($s2,$a<start2>+$a<len>,1) {
+         my $speclen = $len > $longest_seen ?? $len !! $longest_seen;
+         if $start1+$len == $i and
+            $start1+$speclen < $s1c and
+            $start2+$len < $s2c and
+            $s1i eq substr($s2,$start2>+$len,1) {
             # This active match has continued at $s1[$i]
-            $a<len>++;
+            $len++;
             @nowactive.push($a);
-         } elsif $a<start2>+$a<len> == $i and
-            $a<start2>+$speclen < $s2c and
-            $a<start1>+$a<len> < $s1c and
-            $s2i eq substr($s1,$a<start1>+$a<len>,1) {
+         } elsif $start2+$len == $i and
+            $start2+$speclen < $s2c and
+            $start1+$len < $s1c and
+            $s2i eq substr($s1,$start1+$len,1) {
             # This active match has continued at $s2[$i]
-            $a<len>++;
+            $len++;
             @nowactive.push($a);
-         } elsif $a<len> > $longest_seen {
+         } elsif $len > $longest_seen {
             # An active match has ended
-            $longest_seen = $a<len>;
+            $longest_seen = $len;
             @matches.push($a);
          }
       }
@@ -246,7 +252,6 @@ sub findlongest_substr($s1, $s2) {
             @nowactive.push({ 'start1' => $j, 'start2' => $i, 'len' => 1 });
          }
       }
-      say "We now have {+@nowactive} active matches";
       # We've built a new list of active matches, so swap.
       @active = @nowactive;
       if $i < $s1c {
